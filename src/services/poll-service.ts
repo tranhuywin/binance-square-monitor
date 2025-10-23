@@ -36,11 +36,12 @@ export class PollService {
     this.consecutiveErrors = 0;
     logger.info('Starting poll service', {
       pollingIntervalMs: this.config.pollingIntervalMs,
+      targetCount: this.config.targetUids.length,
     });
 
     // Send start notification
     try {
-      await this.notificationService.sendStartNotification(this.config.targetUid);
+      await this.notificationService.sendStartNotification(this.config.targetUids);
     } catch (error) {
       logger.error('Failed to send start notification', { error });
     }
@@ -70,60 +71,19 @@ export class PollService {
 
     try {
       logger.debug('Starting poll cycle');
-      const posts = await this.binanceClient.fetchLatestPosts();
-
-      if (posts.length === 0) {
-        logger.info('No posts found for user');
-      } else {
-        // Sort posts by timestamp (newest first)
-        posts.sort((a, b) => b.createTime - a.createTime);
-        const latestPost = posts[0];
-
-        logger.debug('Latest post', {
-          id: latestPost.id,
-          timestamp: latestPost.createTime,
-          title: latestPost.title?.substring(0, 50),
-        });
-
-        // Check if this is a new post
-        if (this.stateManager.isNewPost(latestPost.id, latestPost.createTime)) {
-          logger.info('New post detected!', {
-            postId: latestPost.id,
-            title: latestPost.title,
-          });
-
-          // Send notification
-          const authorName =
-            latestPost.author?.nickname || `UID ${this.config.targetUid}`;
-          const postTitle =
-            latestPost.title ||
-            latestPost.summary?.substring(0, 100) ||
-            'Untitled Post';
-          const postUrl = this.binanceClient.getPostUrl(latestPost.contentId);
-
-          try {
-            await this.notificationService.sendNewPostNotification(
-              authorName,
-              postTitle,
-              postUrl
-            );
-          } catch (error) {
-            logger.error('Failed to send new post notification', { error });
-          }
+      
+      // Poll each user sequentially
+      for (const targetUid of this.config.targetUids) {
+        try {
+          await this.pollUser(targetUid);
+        } catch (error) {
+          logger.error('Error polling user', { targetUid, error });
+          // Continue polling other users even if one fails
         }
-
-        // Update state with the latest post
-        await this.stateManager.updateLastSeenPost(
-          latestPost.id,
-          latestPost.createTime
-        );
       }
 
       // Reset error counter on success
       this.consecutiveErrors = 0;
-
-      // Update last check time
-      await this.stateManager.updateLastCheckTime();
     } catch (error) {
       this.consecutiveErrors++;
       logger.error('Error during poll cycle', {
@@ -166,6 +126,63 @@ export class PollService {
         void this.poll();
       }, nextPollMs);
     }
+  }
+
+  private async pollUser(targetUid: string): Promise<void> {
+    logger.debug('Polling user', { targetUid });
+    const posts = await this.binanceClient.fetchLatestPosts(targetUid);
+
+    if (posts.length === 0) {
+      logger.info('No posts found for user', { targetUid });
+      await this.stateManager.updateLastCheckTime(targetUid);
+      return;
+    }
+
+    // Sort posts by timestamp (newest first)
+    posts.sort((a, b) => b.createTime - a.createTime);
+    const latestPost = posts[0];
+
+    logger.debug('Latest post', {
+      targetUid,
+      id: latestPost.id,
+      timestamp: latestPost.createTime,
+      title: latestPost.title?.substring(0, 50),
+    });
+
+    // Check if this is a new post
+    if (this.stateManager.isNewPost(targetUid, latestPost.id, latestPost.createTime)) {
+      logger.info('New post detected!', {
+        targetUid,
+        postId: latestPost.id,
+        title: latestPost.title,
+      });
+
+      // Send notification
+      const authorName =
+        latestPost.author?.nickname || `UID ${targetUid}`;
+      const postTitle =
+        latestPost.title ||
+        latestPost.summary?.substring(0, 100) ||
+        'Untitled Post';
+      const postUrl = this.binanceClient.getPostUrl(latestPost.contentId);
+
+      try {
+        await this.notificationService.sendNewPostNotification(
+          authorName,
+          postTitle,
+          postUrl
+        );
+      } catch (error) {
+        logger.error('Failed to send new post notification', { error });
+      }
+    }
+
+    // Update state with the latest post
+    await this.stateManager.updateLastSeenPost(
+      targetUid,
+      latestPost.id,
+      latestPost.createTime
+    );
   }
 }
 

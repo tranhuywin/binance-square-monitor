@@ -1,7 +1,7 @@
 {
   "name": "binance-square-monitor",
-  "version": "1.0.0",
-  "description": "A TypeScript-based Node.js application to monitor Binance Square for new posts from specified users",
+  "version": "2.0.0",
+  "description": "A TypeScript-based Node.js application to monitor Binance Square for new posts from multiple users",
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc",

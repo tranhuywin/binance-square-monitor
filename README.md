@@ -5,8 +5,9 @@ A production-ready Node.js + TypeScript application that monitors Binance Square
 ## Features
 
 - 🔔 **Real-time Monitoring**: Polls Binance Square endpoint for new posts
+- 👥 **Multi-User Support**: Monitor multiple users simultaneously
 - 📱 **Desktop Notifications**: Native macOS notifications with post title and link
-- 💾 **State Persistence**: Tracks seen posts to avoid duplicate notifications
+- 💾 **State Persistence**: Tracks seen posts per user to avoid duplicate notifications
 - 🔄 **Retry Logic**: Exponential backoff with configurable retries
 - ⚠️ **Error Handling**: Graceful error handling and rate-limit detection
 - 📊 **Comprehensive Logging**: Winston-based logging with file output
@@ -38,8 +39,11 @@ A production-ready Node.js + TypeScript application that monitors Binance Square
 
 4. **Edit `.env` file** with your configuration:
    ```env
-   # Required: The target user's Square UID to monitor
-   TARGET_UID=your_target_uid_here
+   # Required: Target user(s) Square UID to monitor
+   # Multiple users (comma-separated):
+   TARGET_UIDS=uid1,uid2,uid3
+   # Or single user (backward compatible):
+   # TARGET_UID=your_target_uid_here
 
    # Optional: Polling interval in milliseconds (default: 60000 = 1 minute)
    POLLING_INTERVAL_MS=60000
@@ -175,7 +179,8 @@ binance-square-monitor/
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `TARGET_UID` | Yes | - | Binance Square user UID to monitor |
+| `TARGET_UIDS` | Yes* | - | Comma-separated list of Binance Square user UIDs to monitor |
+| `TARGET_UID` | Yes* | - | Single Binance Square user UID (backward compatible) |
 | `POLLING_INTERVAL_MS` | No | 60000 | Time between polls (milliseconds) |
 | `REQUEST_TIMEOUT_MS` | No | 10000 | HTTP request timeout |
 | `MAX_RETRIES` | No | 3 | Maximum retry attempts per request |
@@ -185,6 +190,10 @@ binance-square-monitor/
 | `USER_AGENT` | No | Chrome UA | Custom User-Agent header |
 | `COOKIES` | No | - | Cookies for authentication |
 | `LOG_LEVEL` | No | info | Logging level (error/warn/info/debug) |
+
+\* Either `TARGET_UIDS` or `TARGET_UID` must be provided.
+
+> **📘 Multi-User Monitoring**: See [MULTI_USER_GUIDE.md](./MULTI_USER_GUIDE.md) for detailed information about monitoring multiple users.
 
 ## Logging
 
@@ -335,6 +344,13 @@ For issues or questions:
 3. Check your configuration in `.env`
 
 ## Changelog
+
+### v2.0.0
+- **Multi-User Support**: Monitor multiple users simultaneously
+- **Enhanced State Management**: Per-user state tracking
+- **Backward Compatibility**: Still supports single-user mode with `TARGET_UID`
+- **Improved Logging**: User-specific logging for better debugging
+- **Automatic Migration**: Seamlessly migrates from v1.0.0 state format
 
 ### v1.0.0
 - Initial release

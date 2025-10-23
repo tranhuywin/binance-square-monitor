@@ -39,10 +39,10 @@ export class BinanceClient {
     });
   }
 
-  async fetchLatestPosts(): Promise<BinanceSquarePost[]> {
+  async fetchLatestPosts(targetUid: string): Promise<BinanceSquarePost[]> {
     const url = '/bapi/composite/v1/friendly/pgc/content/queryUserProfilePageContentsWithFilter';
     const params = {
-      targetSquareUid: this.config.targetUid,
+      targetSquareUid: targetUid,
       timeOffset: -1,
       filterType: 'ALL',
     };

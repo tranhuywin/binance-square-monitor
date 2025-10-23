@@ -24,8 +24,23 @@ function getEnvNumber(key: string, defaultValue: number): number {
 }
 
 export function loadConfig(): AppConfig {
+  // Parse TARGET_UIDS - support both comma-separated and single UID for backward compatibility
+  const targetUidsEnv = process.env.TARGET_UIDS || process.env.TARGET_UID;
+  if (!targetUidsEnv) {
+    throw new Error('TARGET_UIDS (or TARGET_UID for single user) is required');
+  }
+  
+  const targetUids = targetUidsEnv
+    .split(',')
+    .map(uid => uid.trim())
+    .filter(uid => uid.length > 0);
+
+  if (targetUids.length === 0) {
+    throw new Error('At least one target UID must be provided');
+  }
+
   const config: AppConfig = {
-    targetUid: getEnvVar('TARGET_UID'),
+    targetUids,
     pollingIntervalMs: getEnvNumber('POLLING_INTERVAL_MS', 60000), // Default: 1 minute
     requestTimeoutMs: getEnvNumber('REQUEST_TIMEOUT_MS', 10000), // Default: 10 seconds
     maxRetries: getEnvNumber('MAX_RETRIES', 3),
@@ -41,17 +56,13 @@ export function loadConfig(): AppConfig {
     bncUuid: process.env.BNC_UUID,
   };
 
-  // Validate config
-  if (!config.targetUid) {
-    throw new Error('TARGET_UID is required');
-  }
-
   if (config.pollingIntervalMs < 5000) {
     logger.warn('Polling interval is less than 5 seconds, this may trigger rate limiting');
   }
 
   logger.info('Configuration loaded successfully', {
-    targetUid: config.targetUid,
+    targetUids: config.targetUids.join(', '),
+    targetCount: config.targetUids.length,
     pollingIntervalMs: config.pollingIntervalMs,
     maxRetries: config.maxRetries,
   });

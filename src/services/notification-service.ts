@@ -13,9 +13,9 @@ export class NotificationService {
         {
           title: options.title,
           message: 'you got a new message',
-          sound: options.sound !== false, // Default to true
-          wait: options.wait || false,
-          timeout: 10, // Auto-dismiss after 10 seconds
+          sound: true,
+          wait: true,
+          timeout: false,
           ...(options.open && { open: options.open }),
         },
         (error, response) => {
@@ -55,10 +55,14 @@ export class NotificationService {
     });
   }
 
-  async sendStartNotification(targetUid: string): Promise<void> {
+  async sendStartNotification(targetUids: string[]): Promise<void> {
+    const userList = targetUids.length <= 3 
+      ? targetUids.join(', ')
+      : `${targetUids.slice(0, 3).join(', ')} and ${targetUids.length - 3} more`;
+    
     await this.send({
       title: '✅ Binance Square Monitor Started',
-      message: `Monitoring user: ${targetUid}`,
+      message: `Monitoring ${targetUids.length} user(s): ${userList}`,
       sound: false,
     });
   }

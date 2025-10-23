@@ -56,7 +56,7 @@ async function main() {
     await pollService.start();
 
     logger.info('Application started successfully');
-    logger.info(`Monitoring user: ${config.targetUid}`);
+    logger.info(`Monitoring ${config.targetUids.length} user(s): ${config.targetUids.join(', ')}`);
     logger.info(`Polling interval: ${config.pollingIntervalMs}ms`);
     logger.info('Press Ctrl+C to stop');
   } catch (error) {

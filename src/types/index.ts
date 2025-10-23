@@ -49,7 +49,7 @@ export interface BinanceApiResponse {
 }
 
 export interface AppConfig {
-  targetUid: string;
+  targetUids: string[];
   pollingIntervalMs: number;
   requestTimeoutMs: number;
   maxRetries: number;
@@ -65,10 +65,16 @@ export interface AppConfig {
   bncUuid?: string;
 }
 
-export interface AppState {
+export interface UserState {
   lastSeenPostId: string | null;
   lastSeenTimestamp: number | null;
   lastCheckTime: number;
+}
+
+export interface AppState {
+  users: {
+    [uid: string]: UserState;
+  };
 }
 
 export interface NotificationOptions {

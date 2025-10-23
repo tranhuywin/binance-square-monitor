@@ -3,6 +3,12 @@ import { existsSync } from 'fs';
 import { AppState } from '../types';
 import { logger } from '../utils/logger';
 
+interface UserState {
+  lastSeenPostId: string | null;
+  lastSeenTimestamp: number | null;
+  lastCheckTime: number;
+}
+
 export class StateManager {
   private stateFilePath: string;
   private state: AppState;
@@ -10,9 +16,7 @@ export class StateManager {
   constructor(stateFilePath: string) {
     this.stateFilePath = stateFilePath;
     this.state = {
-      lastSeenPostId: null,
-      lastSeenTimestamp: null,
-      lastCheckTime: 0,
+      users: {},
     };
   }
 
@@ -20,10 +24,21 @@ export class StateManager {
     try {
       if (existsSync(this.stateFilePath)) {
         const data = await readFile(this.stateFilePath, 'utf-8');
-        this.state = JSON.parse(data) as AppState;
+        const loadedState: unknown = JSON.parse(data);
+        
+        // Handle migration from old format
+        if (this.isOldFormat(loadedState)) {
+          logger.info('Migrating from old state format');
+          this.state = { users: {} };
+        } else if (this.isValidAppState(loadedState)) {
+          this.state = loadedState;
+        } else {
+          logger.warn('Invalid state format, starting fresh');
+          this.state = { users: {} };
+        }
+        
         logger.info('State loaded from file', {
-          lastSeenPostId: this.state.lastSeenPostId,
-          lastSeenTimestamp: this.state.lastSeenTimestamp,
+          userCount: Object.keys(this.state.users as Record<string, unknown>).length,
         });
       } else {
         logger.info('No existing state file found, starting fresh');
@@ -32,6 +47,27 @@ export class StateManager {
       logger.error('Failed to load state file', { error });
       logger.info('Starting with empty state');
     }
+  }
+
+  private isOldFormat(obj: unknown): boolean {
+    return (
+      typeof obj === 'object' &&
+      obj !== null &&
+      'lastSeenPostId' in obj
+    );
+  }
+
+  private isValidAppState(obj: unknown): obj is AppState {
+    if (typeof obj !== 'object' || obj === null) {
+      return false;
+    }
+    
+    const candidate = obj as { users?: unknown };
+    return (
+      'users' in candidate &&
+      typeof candidate.users === 'object' &&
+      candidate.users !== null
+    );
   }
 
   async save(): Promise<void> {
@@ -45,42 +81,60 @@ export class StateManager {
     }
   }
 
-  getLastSeenPostId(): string | null {
-    return this.state.lastSeenPostId;
+  private getUserState(uid: string): UserState {
+    const users = this.state.users as Record<string, UserState | undefined>;
+    let userState = users[uid];
+    if (!userState) {
+      userState = {
+        lastSeenPostId: null,
+        lastSeenTimestamp: null,
+        lastCheckTime: 0,
+      };
+      users[uid] = userState;
+    }
+    return userState;
   }
 
-  getLastSeenTimestamp(): number | null {
-    return this.state.lastSeenTimestamp;
+  getLastSeenPostId(uid: string): string | null {
+    return this.getUserState(uid).lastSeenPostId;
   }
 
-  getLastCheckTime(): number {
-    return this.state.lastCheckTime;
+  getLastSeenTimestamp(uid: string): number | null {
+    return this.getUserState(uid).lastSeenTimestamp;
   }
 
-  async updateLastSeenPost(postId: string, timestamp: number): Promise<void> {
-    this.state.lastSeenPostId = postId;
-    this.state.lastSeenTimestamp = timestamp;
-    this.state.lastCheckTime = Date.now();
+  getLastCheckTime(uid: string): number {
+    return this.getUserState(uid).lastCheckTime;
+  }
+
+  async updateLastSeenPost(uid: string, postId: string, timestamp: number): Promise<void> {
+    const userState = this.getUserState(uid);
+    userState.lastSeenPostId = postId;
+    userState.lastSeenTimestamp = timestamp;
+    userState.lastCheckTime = Date.now();
     await this.save();
   }
 
-  async updateLastCheckTime(): Promise<void> {
-    this.state.lastCheckTime = Date.now();
+  async updateLastCheckTime(uid: string): Promise<void> {
+    const userState = this.getUserState(uid);
+    userState.lastCheckTime = Date.now();
     await this.save();
   }
 
-  isNewPost(postId: string, timestamp: number): boolean {
+  isNewPost(uid: string, postId: string, timestamp: number): boolean {
+    const userState = this.getUserState(uid);
+    
     // If we haven't seen any posts yet, don't treat existing posts as new
-    if (this.state.lastSeenPostId === null) {
+    if (userState.lastSeenPostId === null) {
       return false;
     }
 
     // Check if this post ID is different from the last seen one
-    if (postId !== this.state.lastSeenPostId) {
+    if (postId !== userState.lastSeenPostId) {
       // Also verify the timestamp is newer or equal
       if (
-        this.state.lastSeenTimestamp === null ||
-        timestamp >= this.state.lastSeenTimestamp
+        userState.lastSeenTimestamp === null ||
+        timestamp >= userState.lastSeenTimestamp
       ) {
         return true;
       }
